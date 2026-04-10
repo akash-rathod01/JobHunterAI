@@ -29,7 +29,7 @@ J-JobHunterAI is built for high performance, ease of use, and deep extensibility
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/[your-username]/J-JobHunterAI.git
+   git clone https://github.com/akash-rathod01/JobHunterAI.git
    cd J-JobHunterAI
    ```
 2. **Install Dependencies:**
@@ -48,3 +48,6 @@ Your data (emails, resumes, API keys) is fundamentally yours. J-JobHunterAI is b
 
 ## 📝 License
 This project is open-sourced under the AGPLv3. Feel free to extend the agents and share your custom logic loops.
+
+## 👨‍💻 Maintainer
+**Updated and Maintained by:** [Akash Rathod](https://github.com/akash-rathod01)
