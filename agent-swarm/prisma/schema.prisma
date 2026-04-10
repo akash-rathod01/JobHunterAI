@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Job {
+  id                    String    @id @default(cuid())
+  source                String    @default("gradcracker")
+  sourceJobId           String?
+  jobUrlDirect          String?
+  datePosted            String?
+  title                 String
+  employer              String
+  employerUrl           String?
+  jobUrl                String    @unique
+  applicationLink       String?
+  disciplines           String?
+  deadline              String?
+  salary                String?
+  location              String?
+  degreeRequired        String?
+  starting              String?
+  jobDescription        String?
+
+  jobType               String?
+  salarySource          String?
+  salaryInterval        String?
+  salaryMinAmount       Float?
+  salaryMaxAmount       Float?
+  salaryCurrency        String?
+  isRemote              Boolean?
+  jobLevel              String?
+  jobFunction           String?
+  listingType           String?
+  emails                String?
+  companyIndustry       String?
+  companyLogo           String?
+  companyUrlDirect      String?
+  companyAddresses      String?
+  companyNumEmployees   String?
+  companyRevenue        String?
+  companyDescription    String?
+  skills                String?
+  experienceRange       String?
+  companyRating         Float?
+  companyReviewsCount   Int?
+  vacancyCount          Int?
+  workFromHomeType      String?
+
+  status                String    @default("discovered")
+  outcome               String?
+  closedAt              Int?
+  suitabilityScore      Float?
+  suitabilityReason     String?
+  tailoredSummary       String?
+  tailoredHeadline      String?
+  tailoredSkills        String?
+  selectedProjectIds    String?
+  pdfPath               String?
+  tracerLinksEnabled    Boolean   @default(false)
+  sponsorMatchScore     Float?
+  sponsorMatchNames     String?
+
+  discoveredAt          DateTime  @default(now())
+  processedAt           DateTime?
+  appliedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  stageEvents           StageEvent[]
+  tasks                 Task[]
+  interviews            Interview[]
+  chatThreads           JobChatThread[]
+  chatMessages          JobChatMessage[]
+  chatRuns              JobChatRun[]
+  postApplicationMessages PostApplicationMessage[]
+  tracerLinks           TracerLink[]
+}
+
+model StageEvent {
+  id              String   @id @default(cuid())
+  applicationId   String
+  job             Job      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  title           String
+  groupId         String?
+  fromStage       String?
+  toStage         String
+  occurredAt      Int
+  metadata        String?
+  outcome         String?
+}
+
+model Task {
+  id              String   @id @default(cuid())
+  applicationId   String
+  job             Job      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type            String
+  title           String
+  dueDate         Int?
+  isCompleted     Boolean  @default(false)
+  notes           String?
+}
+
+model Interview {
+  id              String   @id @default(cuid())
+  applicationId   String
+  job             Job      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scheduledAt     Int
+  durationMins    Int?
+  type            String
+  outcome         String?
+}
+
+model PipelineRun {
+  id              String   @id @default(cuid())
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  status          String   @default("running")
+  jobsDiscovered  Int      @default(0)
+  jobsProcessed   Int      @default(0)
+  errorMessage    String?
+}
+
+model JobChatThread {
+  id                  String   @id @default(cuid())
+  jobId               String
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  title               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  lastMessageAt       DateTime?
+  activeRootMessageId String?
+
+  messages            JobChatMessage[]
+  runs                JobChatRun[]
+
+  @@index([jobId, updatedAt])
+}
+
+model JobChatMessage {
+  id                  String   @id @default(cuid())
+  threadId            String
+  thread              JobChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  jobId               String
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  role                String
+  content             String   @default("")
+  status              String   @default("partial")
+  tokensIn            Int?
+  tokensOut           Int?
+  version             Int      @default(1)
+  replacesMessageId   String?
+  parentMessageId     String?
+  activeChildId       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([threadId, createdAt])
+}
+
+model JobChatRun {
+  id              String   @id @default(cuid())
+  threadId        String
+  thread          JobChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status          String   @default("running")
+  model           String?
+  provider        String?
+  errorCode       String?
+  errorMessage    String?
+  startedAt       Int
+  completedAt     Int?
+  requestId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([threadId, status])
+}
+
+model Settings {
+  key             String   @id
+  value           String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PostApplicationIntegration {
+  id              String   @id @default(cuid())
+  provider        String
+  accountKey      String   @default("default")
+  displayName     String?
+  status          String   @default("disconnected")
+  credentials     String?
+  lastConnectedAt Int?
+  lastSyncedAt    Int?
+  lastError       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  syncRuns        PostApplicationSyncRun[]
+  messages        PostApplicationMessage[]
+
+  @@unique([provider, accountKey])
+}
+
+model PostApplicationSyncRun {
+  id                  String   @id @default(cuid())
+  provider            String
+  accountKey          String   @default("default")
+  integrationId       String?
+  integration         PostApplicationIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  status              String   @default("running")
+  startedAt           Int
+  completedAt         Int?
+  messagesDiscovered  Int      @default(0)
+  messagesRelevant    Int      @default(0)
+  messagesClassified  Int      @default(0)
+  messagesMatched     Int      @default(0)
+  messagesApproved    Int      @default(0)
+  messagesDenied      Int      @default(0)
+  messagesErrored     Int      @default(0)
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  messages            PostApplicationMessage[]
+
+  @@index([provider, accountKey, startedAt])
+}
+
+model PostApplicationMessage {
+  id                        String   @id @default(cuid())
+  provider                  String
+  accountKey                String   @default("default")
+  integrationId             String?
+  integration               PostApplicationIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  syncRunId                 String?
+  syncRun                   PostApplicationSyncRun? @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+  externalMessageId         String
+  externalThreadId          String?
+  fromAddress               String   @default("")
+  fromDomain                String?
+  senderName                String?
+  subject                   String   @default("")
+  receivedAt                Int
+  snippet                   String   @default("")
+  classificationLabel       String?
+  classificationConfidence  Float?
+  classificationPayload     String?
+  relevanceLlmScore         Float?
+  relevanceDecision         String   @default("needs_llm")
+  matchConfidence           Int?
+  messageType               String   @default("other")
+  stageEventPayload         String?
+  processingStatus          String   @default("pending_user")
+  matchedJobId              String?
+  matchedJob                Job?     @relation(fields: [matchedJobId], references: [id], onDelete: SetNull)
+  decidedAt                 Int?
+  decidedBy                 String?
+  errorCode                 String?
+  errorMessage              String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@unique([provider, accountKey, externalMessageId])
+  @@index([provider, accountKey, processingStatus])
+}
+
+model TracerLink {
+  id                    String   @id @default(cuid())
+  token                 String   @unique
+  jobId                 String
+  job                   Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sourcePath            String
+  sourceLabel           String
+  destinationUrl        String
+  destinationUrlHash    String
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  clickEvents           TracerClickEvent[]
+
+  @@unique([jobId, sourcePath, destinationUrlHash])
+  @@index([jobId])
+}
+
+model TracerClickEvent {
+  id                    String   @id @default(cuid())
+  tracerLinkId          String
+  tracerLink            TracerLink @relation(fields: [tracerLinkId], references: [id], onDelete: Cascade)
+  clickedAt             Int
+  requestId             String?
+  isLikelyBot           Boolean  @default(false)
+  deviceType            String   @default("unknown")
+  uaFamily              String   @default("unknown")
+  osFamily              String   @default("unknown")
+  referrerHost          String?
+  ipHash                String?
+  uniqueFingerprintHash String?
+
+  @@index([tracerLinkId])
+  @@index([clickedAt])
+  @@index([isLikelyBot])
+  @@index([uniqueFingerprintHash])
+}
