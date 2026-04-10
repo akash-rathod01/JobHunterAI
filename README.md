@@ -13,7 +13,7 @@ This powerful platform utilizes specialized AI agents operating on a localized e
 
 - 🕵️ **ScoutAgent (Extraction Node):** Autonomously crawls target platforms (gradcracker, workingnomads, etc.), extracts relevant role specifications, and funnels raw data into the swarm queue.
 - 🧠 **EvaluatorAgent (LLM Matchmaker):** Intercepts raw jobs and performs deep-semantic scoring against your predefined engineering profile mapping out exactly why you match the role.
-- 📝 **GhostwriterAgent (PDF Tailor):** Upon discovering a high-match percentage, automatically dynamically alters your resume summary and constructs a pixel-perfect, tailored PDF for the specific role without human intervention.
+- 📝 **GhostwriterAgent (Gemma Orchestrator):** A multi-level Critic-Actor swarm powered by local Gemma-2. It utilizes narrow-chaining where a "Miner" extracts constraints, a "Writer" redraws resume bullets, and a heavily cynical "Supervisor" validates the output to eliminate AI hallucinations before exporting pixel-perfect PDFs automatically.
 - 📨 **CommsAgent (Inbox Ops):** Watches for incoming recruiter communications natively, parsing interview invites or rejection semantics, updating the master dashboard in real-time.
 
 ## 🛠 Tech Stack
@@ -23,7 +23,7 @@ J-JobHunterAI is built for high performance, ease of use, and deep extensibility
 - **Core Engine:** Node.js, TypeScript, and a unified workspace methodology.
 - **Database:** Prisma & Custom SQLite implementations managing event states and telemetry tracking.
 - **Frontend Panel:** React, Vite, and a custom Dark Swarm glassmorphic interface leveraging native Radix component boundaries.
-- **AI Processing:** OpenRouter / OpenAI compatibility layers for autonomous resume generation and text analysis.
+- **AI Processing:** Deeply integrated with **Ollama** allowing local instance pipelines of `gemma2:2b` for extreme privacy, alongside OpenRouter / OpenAI compatibility layers.
 
 ## 🚀 Quick Start
 
@@ -36,12 +36,16 @@ J-JobHunterAI is built for high performance, ease of use, and deep extensibility
    ```bash
    npm install
    ```
-3. **Execute the Swarm Dashboard:**
+3. **Start Local AI Engine (Highly Recommended):**
    ```bash
-   npm run dev
+   ollama run gemma2:2b
+   ```
+4. **Execute the Swarm Dashboard:**
+   ```bash
+   npm --workspace agent-swarm run dev
    ```
 
-> 🌐 A sleek, independent dashboard will launch on `http://localhost:3005` displaying your active agent operations and tailored resumes!
+> 🌐 A sleek, independent dashboard will launch on `http://localhost:5173` displaying your active agent operations and tailored resumes!
 
 ## 🔒 Privacy & Self-Hosting
 Your data (emails, resumes, API keys) is fundamentally yours. J-JobHunterAI is built entirely around self-hosted principles via local SQLite persistence. No external analytics, no SaaS database dependencies, no VC-backed telemetry.
