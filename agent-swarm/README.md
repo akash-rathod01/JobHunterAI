@@ -1,150 +1,61 @@
-# Job Ops Orchestrator
+# 🚀 J-JobHunterAI Swarm Control Plane
 
-A unified orchestrator for the job application pipeline. Discovers jobs, scores them for suitability, generates tailored resumes, and provides a UI to manage applications.
+The localized frontend dashboard and Express backend for monitoring and orchestrating the **J-JobHunterAI Multi-Agent Swarm**. This component allows you to view discovered jobs, manually trigger the Local Evaluator Agent, generate tailored PDFs using the Ghostwriter flow, and track application states locally.
 
-## Architecture
+## 🏗 Sub-Architecture
 
-```
-orchestrator/
+```text
+agent-swarm/
 ├── src/
-│   ├── server/           # Express backend
-│   │   ├── api/          # REST API routes
-│   │   ├── db/           # SQLite + Drizzle ORM
-│   │   ├── pipeline/     # Orchestration logic
-│   │   ├── repositories/ # Data access layer
-│   │   └── services/     # Integrations (crawler, AI, PDF)
-│   ├── client/           # React frontend
-│   │   ├── api/          # API client
-│   │   ├── components/   # UI components
-│   │   └── styles/       # CSS design system
-│   └── shared/           # Shared types
-├── data/                 # SQLite DB + generated PDFs (gitignored)
-└── public/               # Static assets
+│   ├── server/           # Node.js Swarm Event Backend
+│   │   ├── api/          # Webhook / REST ingress
+│   │   ├── db/           # Local SQLite Event Queue
+│   │   ├── pipeline/     # Agent Execution Loops
+│   │   ├── repositories/ # State access layer
+│   │   └── services/     # Integrations (LLM, Scrapers, PDF)
+│   ├── client/           # React Glassmorphic Control Plane
+│   │   ├── api/          # Typed SDK wrapping the backend
+│   │   ├── components/   # Radix primitives
+│   │   └── styles/       # Tailwind V4 core
+│   └── shared/           # End-to-end type validations
+└── data/                 # Segregated SQLite persistence layer
 ```
 
-## Setup
+## 🛠 Setup & Initialization
 
-1. **Install dependencies:**
+1. **Install workspace dependencies (from project root):**
    ```bash
-   cd orchestrator
+   cd ..
    npm install
    ```
 
-2. **Set up environment:**
-    ```bash
-    cp .env.example .env
-    # The app is self-configuring. You can add keys via the UI Onboarding.
-    ```
-
-   After the server starts, use the onboarding modal to connect your LLM provider, configure Reactive Resume (`v5` or `v4`), and select a template resume.
-
-   `v5` (API key) is recommended for self-hosted/latest Reactive Resume. Use `v4` when connecting to the legacy email/password flow.
-
-   OpenRouter is the default LLM provider, but OpenAI, LM Studio, Ollama, `openai-compatible` endpoints, and Gemini are also supported.
-
-   Use `LLM_API_KEY` / `llmApiKey` to configure providers that require an API key.
-   To use the native OpenAI integration, set `LLM_PROVIDER=openai`.
-   For third-party services that expose an OpenAI-style API but are not OpenAI itself, use `LLM_PROVIDER=openai-compatible`.
-
-3. **Initialize database:**
+2. **Database Migration:**
+   Initializes the `events` and `jobs` schema over the local SQLite instance:
    ```bash
-   npm run db:migrate
+   npm --workspace agent-swarm run db:migrate
    ```
 
-4. **Start development server:**
+3. **Start the Control Plane:**
+   Using the unified script run from root:
    ```bash
-   npm run dev
+   npm run dev:all
    ```
 
-    This starts:
-   - Backend API at `http://localhost:3001`
-   - Frontend at `http://localhost:5173`
+4. **Dashboard Access:**
+   - **Enterprise Control Plane (UI):** `http://localhost:5173`
+   - **Orchestration API:** `http://localhost:3001`
 
-## API Endpoints
+## 🧠 Local Agent Configuration
 
-### Jobs
+Inside the dashboard's `Settings` modal, you can configure your LLM extraction routing.
+* **Extreme Privacy (Recommended):** Select `Ollama` and bind it to localhost:11434 (`gemma2:2b`).
+* **Hybrid Processing:** Select `OpenRouter` or `openai-compatible` for routing intensive Ghostwriter operations externally.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/jobs` | List all jobs (filter with `?status=ready,discovered`) |
-| GET | `/api/jobs/:id` | Get single job |
-| PATCH | `/api/jobs/:id` | Update job |
-| POST | `/api/jobs/actions` | Run job actions (`move_to_ready`, `rescore`, `skip`) for one or many jobs |
-| POST | `/api/jobs/actions/stream` | Stream job action progress/events for one or many jobs |
-| POST | `/api/jobs/:id/apply` | Mark as applied |
+## 🧪 Testing
 
-### Pipeline
+The Swarm is backed by automated tests to enforce deterministic queue operations and validate the semantic evaluation schema.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/pipeline/status` | Get pipeline status |
-| GET | `/api/pipeline/runs` | Get recent pipeline runs |
-| POST | `/api/pipeline/run` | Trigger pipeline manually |
-| POST | `/api/webhook/trigger` | Webhook for n8n (use `WEBHOOK_SECRET`) |
-
-### Post-Application Tracking
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/post-application/inbox` | List pending messages for review |
-| POST | `/api/post-application/inbox/:id/approve` | Approve and link to job |
-| POST | `/api/post-application/inbox/:id/deny` | Ignore message |
-| GET | `/api/post-application/runs` | List sync run history |
-| GET | `/api/post-application/providers/gmail/oauth/start` | Initiate Gmail OAuth flow |
-| POST | `/api/post-application/providers/gmail/oauth/exchange` | Exchange OAuth code |
-
-## Daily Flow
-
-1. **17:00 - n8n triggers pipeline:**
-   - Calls `POST /api/webhook/trigger`
-   - Pipeline crawls Gradcracker
-   - Scores jobs with AI
-   - Generates tailored resumes for top 10
-
-2. **You review in the UI:**
-   - See jobs at `http://localhost:5173`
-   - "Ready" tab shows jobs with generated PDFs
-   - Use command bar search (`Cmd/Ctrl+K`) to quickly find and open jobs
-   - Click "View Job" to open application
-   - Download PDF and apply manually
-   - Click "Mark Applied" to mark application status
-
-3. **Track responses (optional):**
-   - Connect Gmail in Tracking Inbox settings
-   - Automatic email monitoring for interview invites, offers, rejections
-   - Review and approve/ignore matched emails in the Inbox
-
-## n8n Setup
-
-Create a workflow with:
-
-1. **Schedule Trigger** - Every day at 17:00
-2. **HTTP Request:**
-   - Method: POST
-   - URL: `http://localhost:3001/api/webhook/trigger`
-   - Headers: `Authorization: Bearer YOUR_WEBHOOK_SECRET`
-
-## Development
-
+Execute the suite locally:
 ```bash
-# Run just the server
-npm run dev:server
-
-# Run just the client
-npm run dev:client
-
-# Run the pipeline manually
-npm run pipeline:run
-
-# Build for production
-npm run build
-npm start
+npm run test:run
 ```
-
-## Tech Stack
-
-- **Backend:** Express, TypeScript, Drizzle ORM, SQLite
-- **Frontend:** React, Vite, CSS (custom design system)
-- **AI:** Configurable LLM provider (OpenRouter default; also supports OpenAI via the dedicated `openai` provider, `openai-compatible` endpoints, Gemini, LM Studio, and Ollama)
-- **PDF Generation:** Reactive Resume v4/v5 API export (configured via Settings)
-- **Job Crawling:** Wraps existing TypeScript Crawlee crawler
