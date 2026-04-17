@@ -1,0 +1,40 @@
+name: J-JobHunterAI Enterprise CI
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  enterprise-validation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Enterprise Node Environment (v22.x)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.22.1'
+        cache: 'npm'
+        
+    - name: Install Monorepo Dependencies
+      run: npm ci
+      
+    - name: Enforce Code Quality (Biome Lint & Format)
+      run: npm run check:all
+      
+    - name: Static Analysis (Shared Types)
+      run: npm run check:types:shared
+      
+    - name: Static Analysis (Core Swarm Types)
+      run: npm run check:types
+      
+    - name: Endpoint Extraction Verification (Types)
+      run: |
+        npm run check:types:gradcracker
+        npm run check:types:ukvisajobs
+        
+    - name: Execute Swarm Orchestration Tests (Unit & E2E)
+      run: npm run test:all
