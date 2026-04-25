@@ -169,6 +169,151 @@ Enterprise pipelines require rigorous testing paradigms. J-JobHunterAI enforces 
 
 J-JobHunterAI adheres to strict operability and privacy defaults. Your data (emails, resumes, profiles, API keys, credentials) is completely segregated and inherently yours. The system uses local SQLite persistence, guaranteeing the absence of vendor lock-in, external SaaS database dependencies, and unauthorized telemetry tracking.
 
+## ⚠️ Failure Handling
+
+J-JobHunterAI uses a strict, deterministic failure model. Every `/api/*` route returns a uniform JSON envelope so that clients and integrations can handle errors predictably.
+
+### API Response Contract
+
+**Success**
+```json
+{
+  "ok": true,
+  "data": { ... },
+  "meta": { "requestId": "550e8400-e29b-41d4-a716-446655440000" }
+}
+```
+
+**Failure**
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "UPSTREAM_ERROR",
+    "message": "Ollama did not respond within the timeout window.",
+    "details": { ... }
+  },
+  "meta": { "requestId": "550e8400-e29b-41d4-a716-446655440000" }
+}
+```
+
+> Every response – success or failure – includes a `meta.requestId`. Use this ID when filing issues or searching logs.
+
+---
+
+### Error Code Reference
+
+| HTTP Status | `error.code` | Meaning & Common Cause |
+|---|---|---|
+| `400` | `INVALID_REQUEST` | Malformed request body or missing required fields (Zod validation failure). |
+| `401` | `UNAUTHORIZED` | No valid session or missing `Authorization` header. |
+| `403` | `FORBIDDEN` | Authenticated but not permitted (e.g. accessing another user's resource). |
+| `404` | `NOT_FOUND` | The requested job, run, or route does not exist. |
+| `408` | `REQUEST_TIMEOUT` | An async operation (e.g. LLM call) exceeded its timeout. Maps to `AbortError`. |
+| `409` | `CONFLICT` | Pipeline is already running; duplicate run request rejected. |
+| `422` | `UNPROCESSABLE_ENTITY` | Semantically invalid input (e.g. contradictory config fields). |
+| `500` | `INTERNAL_ERROR` | Unexpected server-side failure. Check server logs with the `requestId`. |
+| `502` | `UPSTREAM_ERROR` | Downstream service (Ollama, OpenRouter, extractor) returned an error. |
+| `503` | `SERVICE_UNAVAILABLE` | A required internal service (e.g. DB, AI engine) is temporarily unavailable. |
+
+---
+
+### Pipeline Failure States
+
+The pipeline run lifecycle has four terminal states recorded in the database:
+
+| State | Triggered by | What to do |
+|---|---|---|
+| `completed` | All steps finished successfully. | Nothing — check the dashboard for generated PDFs. |
+| `failed` | An unhandled exception in any pipeline step. | Inspect server logs filtered by `pipelineRunId`. Fix the root cause and re-trigger via the dashboard. |
+| `cancelled` | A cancel request was accepted while the pipeline was running. | Normal — resume a new run when ready. |
+
+**Checking a failed run programmatically:**
+```bash
+# Trigger pipeline and capture the run ID from the response
+curl -X POST http://localhost:3000/api/pipeline/run \
+  -H "Content-Type: application/json" | jq '.data.pipelineRunId'
+
+# Query the run status
+curl http://localhost:3000/api/pipeline/runs/<pipelineRunId>
+```
+
+**Cancelling a running pipeline:**
+```bash
+curl -X POST http://localhost:3000/api/pipeline/cancel
+# Response: { "ok": true, "data": { "accepted": true, "pipelineRunId": "...", "alreadyRequested": false } }
+```
+
+> A cancel request sets an internal flag that is checked between each pipeline step (`loadProfile → discoverJobs → importJobs → scoreJobs → processJobs`). The run will stop cleanly at the next checkpoint — it will **not** interrupt mid-step.
+
+---
+
+### Correlation IDs & Log Tracing
+
+All log entries are structured JSON and carry context fields for filtering:
+
+| Field | Scope | Description |
+|---|---|---|
+| `requestId` | Every HTTP request | Maps to the `x-request-id` header. Pass this header inbound to pin your own ID. |
+| `pipelineRunId` | Pipeline runs | Set for the lifetime of a full pipeline execution and all its child log entries. |
+| `jobId` | Per-job processing | Set during `summarizeJob` and `generateFinalPdf` steps. |
+
+**Example: tail logs for a specific pipeline run**
+```bash
+# If using pino-pretty locally
+npm run dev:all 2>&1 | grep '"pipelineRunId":"<your-run-id>"'
+```
+
+---
+
+### Common Failure Scenarios & Fixes
+
+#### 1. `UPSTREAM_ERROR` — Ollama not reachable
+```
+error.message: "connect ECONNREFUSED 127.0.0.1:11434"
+```
+**Fix:** Ensure Ollama is running with the correct model pulled:
+```bash
+ollama serve          # starts the Ollama daemon
+ollama run gemma2:2b  # pulls and warms up the model
+```
+
+#### 2. `CONFLICT` — Pipeline already running
+```
+error.code: "CONFLICT"
+error.message: "Pipeline is already running"
+```
+**Fix:** Wait for the current run to finish, or cancel it:
+```bash
+curl -X POST http://localhost:3000/api/pipeline/cancel
+```
+
+#### 3. `REQUEST_TIMEOUT` — LLM call timed out
+```
+error.code: "REQUEST_TIMEOUT"
+error.message: "Request timed out"
+```
+**Fix:** The LLM did not return within the configured timeout. Try:
+- Switching to a smaller model (`gemma2:2b` instead of a larger variant).
+- Reducing `topN` in the pipeline config to process fewer jobs per run.
+- Increasing available RAM/VRAM if running locally.
+
+#### 4. `INVALID_REQUEST` — Profile or config validation failed
+```
+error.code: "INVALID_REQUEST"
+error.details: { "fieldErrors": { "experience": ["Required"] } }
+```
+**Fix:** Validate your `profile.json` against the expected schema. The `details.fieldErrors` map shows exactly which fields are missing or malformed.
+
+#### 5. `INTERNAL_ERROR` — Unexpected crash
+```
+error.code: "INTERNAL_ERROR"
+meta.requestId: "550e8400-..."
+```
+**Fix:** Search server logs for the `requestId` to find the full stack trace. Open a GitHub issue and include the `requestId`, `pipelineRunId` (if applicable), and the log snippet.
+
+---
+
 ## 📝 Licensing & Contribution
 
 This platform is proudly open-source and distributed under the **AGPLv3 License**. Enterprise teams are free to modify, extend agent logic, and formulate custom event loops.
